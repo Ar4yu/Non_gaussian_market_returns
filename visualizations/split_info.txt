@@ -1,0 +1,7 @@
+Split method: fraction
+SPLIT_DATE: None
+TEST_SIZE: 0.2
+
+Train: 2010-01-05 → 2022-10-05 (3211 obs)
+Test:  2022-10-06 → 2025-12-17 (803 obs)
+Tickers: ['AAPL', 'JPM', 'QQQ', 'SPY', 'XOM']

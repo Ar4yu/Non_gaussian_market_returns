@@ -1,0 +1,26 @@
+Advanced Econometrics Final Paper: Non-Gaussian Market Returns
+Ticker analyzed: QQQ
+
+Train: 2010-01-05 → 2022-10-05 (3211 obs)
+Test:  2022-10-06 → 2025-12-17 (803 obs)
+
+Normal MLE (train):
+  mu_hat = 0.00059925, sigma_hat = 0.01297433
+  LL_train = 9394.88, LL_test = 2332.03
+  AIC_train = -18785.77, BIC_train = -18773.62
+
+Student-t MLE (train) with df grid search 1..150:
+  df_hat = 3, mu_hat = 0.00125334, sigma_hat = 0.00810044
+  LL_train = 9741.49, LL_test = 2385.22
+  AIC_train = -19476.99, BIC_train = -19458.76
+
+Model comparison (train):
+  LL improvement (t - normal) = 346.61
+  LR statistic = 2*(LL_t - LL_n) = 693.22
+  Note: Normal is the df→∞ limit of Student-t, so LR χ² reference is only approximate.
+
+Saved:
+  outputs/summary_qqq.csv
+  outputs/hist_overlay_qqq.png
+  outputs/qq_plots_qqq.png
+  outputs/ll_vs_df_qqq.png
