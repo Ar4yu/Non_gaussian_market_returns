@@ -1,8 +1,9 @@
-# rolling_var_with_tests.py
+# rolling_var_fixed.py
 # pip install pandas numpy scipy
 #
-# OUTPUT:
-#   outputs/rolling_var_backtest_qqq.csv
+# OUTPUTS:
+#   outputs/rolling_var_qqq_daily.csv        (daily VaR + exceedances)
+#   outputs/rolling_var_qqq_summary.csv      (one-row summary per model)
 
 from pathlib import Path
 import numpy as np
@@ -15,10 +16,10 @@ OUT_DIR = Path("outputs")
 LOGRET_CSV = DATA_DIR / "log_returns.csv"
 TICKER = "QQQ"
 
-WINDOW = 504              # ~2 years
-ALPHA = 0.01              # 1% VaR
-SIG_LEVEL = 0.05          # 5% test level
-DF_T = 3                  # fixed df from Student-t MLE
+WINDOW = 504
+ALPHA = 0.01          # VaR level
+SIG_LEVEL = 0.05      # significance level for tests
+DF_T = 3
 START_TEST_DATE = "2022-10-06"
 
 
@@ -30,7 +31,7 @@ def normal_mle(x):
 
 def kupiec_uc_test(exceed, alpha):
     n = len(exceed)
-    x = np.sum(exceed)
+    x = int(np.sum(exceed))
     phat = x / n
     eps = 1e-12
 
@@ -39,11 +40,14 @@ def kupiec_uc_test(exceed, alpha):
 
     lr = -2 * (ll0 - ll1)
     pval = 1 - stats.chi2.cdf(lr, df=1)
-    return lr, pval
+    return float(lr), float(pval), x, n
 
 
 def christoffersen_ind_test(exceed):
     e = exceed.astype(int)
+    if len(e) < 2:
+        return np.nan, np.nan
+
     n00 = np.sum((e[:-1] == 0) & (e[1:] == 0))
     n01 = np.sum((e[:-1] == 0) & (e[1:] == 1))
     n10 = np.sum((e[:-1] == 1) & (e[1:] == 0))
@@ -64,15 +68,21 @@ def christoffersen_ind_test(exceed):
 
     lr = -2 * (ll0 - ll1)
     pval = 1 - stats.chi2.cdf(lr, df=1)
-    return lr, pval
+    return float(lr), float(pval)
 
 
 def conditional_coverage_test(exceed, alpha):
-    lr_uc, p_uc = kupiec_uc_test(exceed, alpha)
+    lr_uc, p_uc, x, n = kupiec_uc_test(exceed, alpha)
     lr_ind, p_ind = christoffersen_ind_test(exceed)
     lr_cc = lr_uc + lr_ind
     p_cc = 1 - stats.chi2.cdf(lr_cc, df=2)
-    return lr_uc, p_uc, lr_ind, p_ind, lr_cc, p_cc
+    return {
+        "LR_uc": lr_uc, "p_uc": p_uc,
+        "LR_ind": lr_ind, "p_ind": p_ind,
+        "LR_cc": float(lr_cc), "p_cc": float(p_cc),
+        "x": x, "n": n,
+        "exceed_rate": x / n
+    }
 
 
 def main():
@@ -81,64 +91,63 @@ def main():
     df = pd.read_csv(LOGRET_CSV, index_col=0, parse_dates=True).sort_index()
     r = df[TICKER].dropna()
 
-    records = []
-
+    rows = []
     for t in range(WINDOW, len(r)):
         date = r.index[t]
         if date < pd.to_datetime(START_TEST_DATE):
             continue
 
         train = r.iloc[t - WINDOW:t].values
-        test_ret = r.iloc[t]
+        ret = float(r.iloc[t])
 
-        # --- Normal VaR ---
+        # Normal VaR
         mu_n, sig_n = normal_mle(train)
         var_n = mu_n + sig_n * stats.norm.ppf(ALPHA)
-        exc_n = int(test_ret < var_n)
+        exc_n = int(ret < var_n)
 
-        # --- Student-t VaR ---
-        mu_t = np.mean(train)
-        sig_t = np.sqrt(np.mean((train - mu_t) ** 2))
+        # Student-t VaR (df fixed)
+        mu_t, sig_t = normal_mle(train)
         var_t = mu_t + sig_t * stats.t.ppf(ALPHA, DF_T)
-        exc_t = int(test_ret < var_t)
+        exc_t = int(ret < var_t)
 
-        records.append({
+        rows.append({
             "date": date,
-            "return": test_ret,
-            "VaR_normal": var_n,
-            "VaR_t": var_t,
+            "return": ret,
+            "VaR_normal": float(var_n),
+            "VaR_t": float(var_t),
             "exceed_normal": exc_n,
             "exceed_t": exc_t,
         })
 
-    out = pd.DataFrame(records).set_index("date")
+    daily = pd.DataFrame(rows).set_index("date")
+    daily_path = OUT_DIR / "rolling_var_qqq_daily.csv"
+    daily.reset_index().to_csv(daily_path, index=False)
 
-    # --- Backtests ---
+    # Overall backtests (one p-value per model)
+    summaries = []
     for model in ["normal", "t"]:
-        exceed = out[f"exceed_{model}"].values
-        lr_uc, p_uc, lr_ind, p_ind, lr_cc, p_cc = conditional_coverage_test(exceed, ALPHA)
+        exceed = daily[f"exceed_{model}"].values.astype(int)
+        bt = conditional_coverage_test(exceed, ALPHA)
+        summaries.append({
+            "ticker": TICKER,
+            "model": model,
+            "alpha": ALPHA,
+            "window_days": WINDOW,
+            "start_test_date": START_TEST_DATE,
+            **bt,
+            "reject_uc_5pct": int(bt["p_uc"] < SIG_LEVEL),
+            "reject_ind_5pct": int(bt["p_ind"] < SIG_LEVEL),
+            "reject_cc_5pct": int(bt["p_cc"] < SIG_LEVEL),
+        })
 
-        out[f"{model}_LR_uc"] = lr_uc
-        out[f"{model}_p_uc"] = p_uc
-        out[f"{model}_reject_uc"] = int(p_uc < SIG_LEVEL)
+    summary = pd.DataFrame(summaries)
+    summary_path = OUT_DIR / "rolling_var_qqq_summary.csv"
+    summary.to_csv(summary_path, index=False)
 
-        out[f"{model}_LR_ind"] = lr_ind
-        out[f"{model}_p_ind"] = p_ind
-        out[f"{model}_reject_ind"] = int(p_ind < SIG_LEVEL)
-
-        out[f"{model}_LR_cc"] = lr_cc
-        out[f"{model}_p_cc"] = p_cc
-        out[f"{model}_reject_cc"] = int(p_cc < SIG_LEVEL)
-
-    path = OUT_DIR / "rolling_var_backtest_qqq.csv"
-    out.reset_index().to_csv(path, index=False)
-
-    print(f"Saved rolling VaR backtest with p-values to: {path.resolve()}")
-    print("\nRejection summary (5% level):")
-    print(out[[
-        "normal_reject_uc", "normal_reject_cc",
-        "t_reject_uc", "t_reject_cc"
-    ]].max())
+    print(f"Saved daily rolling VaR to: {daily_path.resolve()}")
+    print(f"Saved rolling VaR summary to: {summary_path.resolve()}\n")
+    print(summary[["model", "alpha", "x", "n", "exceed_rate", "p_uc", "p_ind", "p_cc",
+                   "reject_uc_5pct", "reject_cc_5pct"]].to_string(index=False))
 
 
 if __name__ == "__main__":
