@@ -20,7 +20,7 @@ from scipy.optimize import minimize
 # -------------------- Config --------------------
 DATA_DIR = Path("data_processed")
 OUT_DIR = Path("outputs")
-VIZ_DIR = OUT_DIR 
+VIZ_DIR = OUT_DIR /"visualizations"
 
 LOGRET_CSV = DATA_DIR / "log_returns.csv"
 TICKER = "QQQ"

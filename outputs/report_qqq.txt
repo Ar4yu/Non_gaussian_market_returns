@@ -21,6 +21,6 @@ Model comparison (train):
 
 Saved:
   outputs/summary_qqq.csv
-  outputs/hist_overlay_qqq.png
-  outputs/qq_plots_qqq.png
-  outputs/ll_vs_df_qqq.png
+  outputs/visualizations/hist_overlay_qqq.png
+  outputs/visualizations/qq_plots_qqq.png
+  outputs/visualizations/ll_vs_df_qqq.png
