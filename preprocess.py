@@ -15,7 +15,8 @@ from pathlib import Path
 TICKERS = ["SPY", "QQQ", "AAPL", "JPM", "XOM"]
 START = "2010-01-01"
 INTERVAL = "1d"
-OUTDIR = Path("data_processed")
+OUTDIR = Path("reproduced/refreshed_data")
+END = "2025-12-18"  # yfinance end is exclusive; preserve the paper period.
 
 # Disable any sqlite-based caching that can cause "database is locked" in some setups
 os.environ.setdefault("YFINANCE_CACHE_DISABLE", "1")
@@ -32,6 +33,7 @@ def download_adj_close(tickers=TICKERS, start=START, interval=INTERVAL, retries=
             df = yf.download(
                 tickers=tickers,
                 start=start,
+                end=END,
                 interval=interval,
                 auto_adjust=False,
                 progress=False,
@@ -72,7 +74,7 @@ def download_adj_close(tickers=TICKERS, start=START, interval=INTERVAL, retries=
 def compute_log_returns(prices: pd.DataFrame) -> pd.DataFrame:
     """
     Compute log returns from Adj Close prices.
-    Forward-fill small gaps; does not create leading history.
+    Forward-fill gaps without a length limit; does not create leading history.
     """
     prices = prices.sort_index().ffill()
     return np.log(prices).diff()

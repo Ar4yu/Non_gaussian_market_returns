@@ -1,4 +1,4 @@
-# var_backtest.py
+# backtest.py
 # pip install pandas numpy scipy matplotlib
 #
 # INPUT:
@@ -65,7 +65,8 @@ def var_threshold(dist: str, alpha: float, params):
         return mu + sig * stats.norm.ppf(alpha)
     if dist == "t":
         df, mu, sig = params
-        return mu + sig * stats.t.ppf(alpha, df=df, loc=0, scale=1) * sig + (mu - mu)  # keep structure explicit
+        return var_threshold_t(alpha, df, mu, sig)
+    raise ValueError(f"Unknown distribution: {dist}")
 
 
 def var_threshold_t(alpha: float, df: int, mu: float, sig: float) -> float:

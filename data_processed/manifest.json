@@ -1,0 +1,7 @@
+{
+  "description": "Original project snapshot, sourced through yfinance from Yahoo Finance. Checksums identify these files, not a data license.",
+  "sha256": {
+    "log_returns.csv": "be5ca75d5ba4e62c26053ba4f8d3e6e91d04772dab62d3bc5b79b02cdb5c4413",
+    "prices_adjclose.csv": "474bf98a940a14aa315f6bb1c8ea84a918d4f2e35bc67e7eaa153849bd3cc59e"
+  }
+}
